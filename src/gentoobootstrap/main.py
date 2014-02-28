@@ -9,11 +9,12 @@ from argparse import ArgumentParser
 import traceback
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../../cfgio/src'))
 
+from gentoobootstrap.actions.gentoo import InstallGentooAction
 from gentoobootstrap.actions.domuconfig import CreateDomUConfig
 from gentoobootstrap.actions.storage import CreateStorageAction
 from gentoobootstrap.config.file import FileConfig
-
 
 class Bootstrap(object):
 
@@ -30,34 +31,35 @@ class Bootstrap(object):
 
 		return True
 
-	def execute(self):
+	def execute(self, install=True, personalize=True):
 		base_dir = tempfile.mkdtemp()
 		logging.debug("Base directory: %s" % base_dir)
 
 		try:
-			actions = [
-				CreateStorageAction(self.config),
-				CreateDomUConfig(self.config)
-			]
+			actions = [CreateStorageAction(self.config)]
+
+			if install:
+				actions.append(InstallGentooAction(self.config))
+
+				if personalize:
+					#actions.append()
+					pass
+				else:
+					logging.info("Skipping personalization")
+			else:
+				logging.info("Skipping installation of Gentoo")
+
+			actions.append(CreateDomUConfig(self.config))
 
 			if not self.check(actions):
 				return
 
 			logging.info("Pre-execution tests passed. Starting bootstrapping")
+			logging.info("Actions: %s" % (', '.join([x.__class__.__name__ for x in actions])))
 
 			for action in actions:
 				action.execute()
 
-			#  1) Create storage
-			#  2) format storage
-			#  3) Extract stageX
-			#  4) Patch configs: locale.gen, make.conf, portage.keywords/.use, fstab
-			#  5)
-			#  9) write chroot setup.sh/.py
-			# 10) mount dev, proc, sys(?) and exec setup script in chroot
-			# 11) set root pwd
-
-			pass
 		except Exception as e:
 			logging.error(e)
 			logging.error(traceback.format_exc())
@@ -73,6 +75,8 @@ def main():
 	parser.add_argument('-n', '--name', required=True, help="The name of the domU")
 	parser.add_argument('-f', '--fqdn', required=True, help="The full-qualified domain name")
 	parser.add_argument('-v', '--verbose', action="count", default=3)
+	parser.add_argument('--no-install', action='store_true', help="Only create the volume and config. Do not install Gentoo.")
+	parser.add_argument('--no-personalize', action="store_true", help="Only install Gentoo, but skip personalization")
 	parser.add_argument('--no-color', action='store_true', help='Do not colorize log output')
 
 	args = parser.parse_args()
@@ -84,17 +88,7 @@ def main():
 		import gentoobootstrap.log
 
 	cfg = FileConfig(args.config, name=args.name, fqdn=args.fqdn)
-	Bootstrap(cfg).execute()
-
-	#print("Arch: %s" % cfg.arch)
-	#print("Locales: %s (default: %s)" % (cfg.locales, cfg.default_locale))
-	#print("Memory: %s" % cfg.memory)
-	#print("CPU: %s" % cfg.vcpu)
-
-	#print("Storage:")
-	#for storage, mount in cfg.storage:
-	#	print(" %s on %s" % (storage, mount, ))
-
+	Bootstrap(cfg).execute(install=not args.no_install, personalize=not args.no_personalize)
 
 
 if __name__ == "__main__":

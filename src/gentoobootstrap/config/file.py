@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from configparser import ConfigParser
+from cfgio.keyvalue import KeyValueConfig
 from gentoobootstrap.config import DIST_CFG_DIR, SITE_CFG_DIR
 from gentoobootstrap.config.base import ConfigBase
 import logging
@@ -12,7 +13,7 @@ from gentoobootstrap.storage import get_impl as get_storage_impl
 class FileConfig(ConfigBase):
 
 	def __init__(self, file, **kwargs):
-		self.name = kwargs.get('name')
+		super(FileConfig, self).__init__(**kwargs)
 		file = os.path.abspath(file)
 		self.parser = ConfigParser(defaults=kwargs)
 		files_read = self.parser.read([os.path.abspath(os.path.join(DIST_CFG_DIR, 'dist.cfg')),
@@ -23,6 +24,8 @@ class FileConfig(ConfigBase):
 		if not file in files_read:
 			logging.warning("Your configuration in %s has been ignored!" % file)
 
+		self._mirrors = None
+
 	def _make_list(self, value):
 		return [x.strip() for x in value.split(',')]
 
@@ -30,6 +33,32 @@ class FileConfig(ConfigBase):
 		return self.parser.get(section, option) \
 				if self.parser.has_option(section, option) \
 				else default
+
+	@property
+	def gentoo_mirrors(self):
+		if not self._mirrors:
+			mirror_string = None
+
+			if self._get_value('bootstrap', 'mirrors', 'inherit') == 'inherit':
+
+				make_conf = None
+
+				for f in ['/etc/portage/make.conf', '/etc/make.conf']:
+					if os.path.exists(f):
+						make_conf = KeyValueConfig(f, values_quoted=True)
+						break
+
+				if make_conf:
+					mirror_string = make_conf.get('GENTOO_MIRROS').value
+				else:
+					raise Exception('No GENTOO_MIRRORS variable found in make.conf')
+
+			else:
+				mirror_string = self.parser.get('bootstrap', 'mirrors')
+
+			self._mirrors = [x.strip() for x in mirror_string.split(' ')]
+
+		return self._mirrors
 
 	@property
 	def arch(self):
@@ -90,3 +119,15 @@ class FileConfig(ConfigBase):
 				))
 
 		return self._storage
+
+	@property
+	def root_storage(self):
+		return next(storage for storage, mount in self.storage if mount == "/")
+
+	@property
+	def network(self):
+		br = self.parser.get('network', 'bridge')
+		if self._get_value('network', 'config', 'auto') == 'auto':
+			return br, None
+		else:
+			return br, self.parser.get('network', 'config')
