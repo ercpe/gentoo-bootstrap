@@ -40,7 +40,6 @@ class FileConfig(ConfigBase):
 			mirror_string = None
 
 			if self._get_value('bootstrap', 'mirrors', 'inherit') == 'inherit':
-
 				make_conf = None
 
 				for f in ['/etc/portage/make.conf', '/etc/make.conf']:
@@ -49,7 +48,7 @@ class FileConfig(ConfigBase):
 						break
 
 				if make_conf:
-					mirror_string = make_conf.get('GENTOO_MIRROS').value
+					mirror_string = make_conf.get('GENTOO_MIRRORS').value
 				else:
 					raise Exception('No GENTOO_MIRRORS variable found in make.conf')
 
@@ -59,6 +58,10 @@ class FileConfig(ConfigBase):
 			self._mirrors = [x.strip() for x in mirror_string.split(' ')]
 
 		return self._mirrors
+
+	@property
+	def portage(self):
+		return self._get_value('bootstrap', 'portage', 'fetch')
 
 	@property
 	def arch(self):
@@ -112,7 +115,9 @@ class FileConfig(ConfigBase):
 					get_storage_impl(storage_type,
 							name=self.parser.get(storage_section, 'disk%s_name' % i),
 							size=Size(self.parser.get(storage_section, 'disk%s_size' % i)),
+							domu_device=self.parser.get(storage_section, 'disk%s_device' % i),
 							filesystem=self.parser.get(storage_section, 'disk%s_fs' % i),
+							opts=self._get_value(storage_section, 'disk%s_opts' % i, None),
 							**global_storage_opts
 					),
 					self.parser.get(storage_section, 'disk%s_mount' % i)
