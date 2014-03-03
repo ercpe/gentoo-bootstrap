@@ -15,6 +15,7 @@ class FileConfig(ConfigBase):
 	def __init__(self, file, **kwargs):
 		super(FileConfig, self).__init__(**kwargs)
 		file = os.path.abspath(file)
+		self.raw_keys = kwargs.keys()
 		self.parser = ConfigParser(defaults=kwargs)
 		files_read = self.parser.read([os.path.abspath(os.path.join(DIST_CFG_DIR, 'dist.cfg')),
 										os.path.abspath(os.path.join(SITE_CFG_DIR, 'site.cfg')),
@@ -136,3 +137,20 @@ class FileConfig(ConfigBase):
 			return br, None
 		else:
 			return br, self.parser.get('network', 'config')
+
+	@property
+	def portage_uses(self):
+		if self.parser.has_section('portage_uses'):
+			for k, v in self.parser.items('portage_uses'):
+				if not k in self.raw_keys:
+					yield (k, v)
+
+		return []
+
+	@property
+	def portage_keywords(self):
+		if self.parser.has_section('portage_keywords'):
+			for k, v in self.parser.items('portage_keywords'):
+				if not k in self.raw_keys:
+					yield (k, v)
+		return []

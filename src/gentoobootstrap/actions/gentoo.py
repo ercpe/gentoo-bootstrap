@@ -4,12 +4,13 @@ import os
 import shutil
 import traceback
 from cfgio.fstab import FstabConfig, FstabEntry
+from cfgio.keyvalue import KeyValueConfig, KeyValueConfigValue
 from cfgio.simple import SimpleConfig, KeyOnlyValue
 from gentoobootstrap.actions.base import ActionBase
 from urllib.parse import urljoin
 from urllib.request import urlopen
 
-from sh import mount, umount, tar
+from sh import mount, umount, tar, sed
 
 
 class GentooStageLoader(object):
@@ -166,6 +167,7 @@ class InstallGentooAction(ActionBase):
 				locale_gen.set(KeyOnlyValue(locale))
 			locale_gen.save()
 
+
 		logging.debug("Writing /etc/fstab")
 		fstab = FstabConfig(os.path.join(self.config.working_directory, 'etc/fstab'))
 		fstab.remove('/dev/BOOT') # will be added later if someone defined a custom partition for /boot
@@ -184,3 +186,26 @@ class InstallGentooAction(ActionBase):
 				fstab.set(FstabEntry(storage.device, mountpoint, storage.filesystem, 'defaults', 0, 2))
 
 		fstab.save()
+
+		logging.debug("Setting hostname to '%s'" % self.config.fqdn)
+		hname = KeyValueConfig(os.path.join(self.config.working_directory, 'etc/conf.d/hostname'), values_quoted=True)
+		hname.set(KeyValueConfigValue('hostname', self.config.hostname))
+		hname.save()
+
+		hosts_file = os.path.join(self.config.working_directory, 'etc/hosts')
+		hosts = KeyValueConfig(hosts_file, separator="\t")
+		hosts.set(KeyValueConfigValue("127.0.0.1", "{fqdn} {hostname} localhost".format(fqdn=self.config.fqdn, hostname=self.config.hostname)))
+		hosts.save()
+
+		logging.debug("Applying portage USEs and keywords...")
+		if self.config.portage_uses:
+			uses = KeyValueConfig(os.path.join(self.config.working_directory, 'etc/portage/package.use'), separator=" ")
+			for pkg, use in self.config.portage_uses:
+				uses.set(KeyValueConfigValue(pkg, use))
+			uses.save()
+
+		if self.config.portage_keywords:
+			keywords = KeyValueConfig(os.path.join(self.config.working_directory, 'etc/portage/package.keywords'), separator=" ")
+			for pkg, kwds in self.config.portage_keywords:
+				keywords.set(KeyValueConfigValue(pkg, kwds))
+			keywords.save()

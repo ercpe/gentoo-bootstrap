@@ -9,6 +9,7 @@ class ConfigBase(object):
 		self._working_directory = None
 		self._mac = None
 		self.name = kwargs.get('name')
+		self.fqdn = kwargs.get('fqdn')
 
 	@property
 	def working_directory(self):
@@ -24,3 +25,10 @@ class ConfigBase(object):
 								random.randint(0x00, 0xff),
 								random.randint(0x00, 0xff)]))
 		return self._mac
+
+	@property
+	def hostname(self):
+		if '.' in self.fqdn:
+			return self.fqdn[:self.fqdn.index('.')]
+		else:
+			return self.fqdn
