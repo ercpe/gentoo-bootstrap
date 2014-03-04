@@ -5,7 +5,7 @@ from gentoobootstrap.actions.base import ActionBase
 
 class CreateStorageAction(ActionBase):
 
-	def check(self):
+	def test(self):
 		return self.config.has_storage and all([not storage.exists() for storage, mount in self.config.storage])
 
 	def execute(self):

@@ -65,6 +65,10 @@ class FileConfig(ConfigBase):
 		return self._get_value('bootstrap', 'portage', 'fetch')
 
 	@property
+	def kernel(self):
+		return self._get_value('system', 'kernel')
+
+	@property
 	def arch(self):
 		return self.parser.get('system', 'arch')
 

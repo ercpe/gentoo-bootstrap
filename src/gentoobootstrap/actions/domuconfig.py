@@ -10,19 +10,29 @@ class CreateDomUConfig(ActionBase):
 		super(CreateDomUConfig, self).__init__(config)
 		self.domu_config = os.path.join('/etc/xen/', '%s.cfg' % self.config.name)
 
-	def check(self):
-		return not os.path.exists(self.domu_config)
+	def test(self):
+		e = os.path.exists(self.domu_config)
+		if e:
+			logging.error("domU config %s already exists" % self.domu_config)
+		return not e
 
 	def execute(self):
-		pass
-# 		logging.info("Writing domU config...")
-# 		cfg="""kernel = "{kernel_image}"
-# vcpus  = {vcpu}
-# memory = {memory}
-# name   = "{name}"
-# disk   = [ 'phy:{root_dev},xvda1,w' ]
-# root   = "/dev/xvda1"
-# vif    = [ 'mac={mac},bridge={bridge}', ]
-# """
-# 		with open(domU_config, 'w') as o:
-# 			o.write(cfg.format(kernel_image=kernel_image, name=name, mac=mac, root_dev=lv_device))
+		logging.info("Writing domU config...")
+
+		storage_devices = []
+		for storage, mount in self.config.storage:
+			storage_devices.append("'phy:%s,%s,w'" % (storage.device, storage.domu_device))
+
+		cfg="""kernel = "{kernel_image}"
+vcpus  = {vcpu}
+memory = {memory}
+name   = "{name}"
+disk   = [ {storage} ]
+root   = "/dev/xvda1"
+vif    = [ 'mac={mac},bridge={bridge}', ]
+""".format(name=self.config.name, vcpu=self.config.vcpu, memory=self.config.memory,
+		mac=self.config.mac_address, bridge=self.config.network[0], storage=', '.join(storage_devices),
+		kernel_image=self.config.kernel)
+
+		with open(self.domu_config, 'w') as o:
+			o.write(cfg)

@@ -11,6 +11,7 @@ import traceback
 sys.path.append(os.path.join(os.path.dirname(__file__), '../'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../../cfgio/src'))
 
+from gentoobootstrap.actions.cfgchk import CheckConfigAction
 from gentoobootstrap.actions.gentoo import InstallGentooAction
 from gentoobootstrap.actions.domuconfig import CreateDomUConfig
 from gentoobootstrap.actions.storage import CreateStorageAction
@@ -25,7 +26,7 @@ class Bootstrap(object):
 		logging.debug("Executing pre-flight checks...")
 
 		for action in actions:
-			if not action.check():
+			if not action.test():
 				logging.error("Action '%s' failed to pass pre-execution tests" % action.__class__.__name__)
 				return False
 
@@ -36,7 +37,7 @@ class Bootstrap(object):
 		logging.debug("Base directory: %s" % base_dir)
 
 		try:
-			actions = [CreateStorageAction(self.config)]
+			actions = [CheckConfigAction(self.config), CreateStorageAction(self.config)]
 
 			if install:
 				actions.append(InstallGentooAction(self.config))

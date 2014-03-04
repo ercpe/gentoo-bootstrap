@@ -78,7 +78,7 @@ class GentooStageLoader(object):
 
 class InstallGentooAction(ActionBase):
 
-	def check(self):
+	def test(self):
 		return True
 
 	def is_mounted(self, mountpoint):
