@@ -6,6 +6,10 @@ from gentoobootstrap.actions.base import ActionBase
 
 
 class CheckConfigAction(ActionBase):
+	"""
+	Action to test for configuration errors. This class does not implement the .execute() method as it is
+	a test-only action
+	"""
 
 	def test(self):
 		if not re.match("^[\w\d_-]+$", self.config.name, re.IGNORECASE):
@@ -23,6 +27,3 @@ class CheckConfigAction(ActionBase):
 				return False
 
 		return True
-
-	def execute(self):
-		pass
