@@ -40,13 +40,7 @@ class Bootstrap(object):
 			actions = [CheckConfigAction(self.config), CreateStorageAction(self.config)]
 
 			if install:
-				actions.append(InstallGentooAction(self.config))
-
-				if personalize:
-					#actions.append()
-					pass
-				else:
-					logging.info("Skipping personalization")
+				actions.append(InstallGentooAction(self.config, personalize=personalize))
 			else:
 				logging.info("Skipping installation of Gentoo")
 

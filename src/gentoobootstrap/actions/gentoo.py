@@ -78,6 +78,10 @@ class GentooStageLoader(object):
 
 class InstallGentooAction(ActionBase):
 
+	def __init__(self, config, personalize=True):
+		super(InstallGentooAction, self).__init__(config)
+		self.do_personalization = personalize
+
 	def test(self):
 		return True
 
@@ -116,6 +120,12 @@ class InstallGentooAction(ActionBase):
 
 		os.rmdir(self.config.working_directory)
 
+	def _path(self, path):
+		"""
+		Returns the properly build path name of path in self.config.working_directory
+		"""
+		return os.path.join(self.config.working_directory, path.lstrip('/'))
+
 	def execute(self):
 		try:
 			self._prepare()
@@ -123,7 +133,7 @@ class InstallGentooAction(ActionBase):
 			# load the latest stage3 archive
 			loader = GentooStageLoader(self.config.gentoo_mirrors)
 
-			stage3 = os.path.join(self.config.working_directory, 'stage3.tar.bz2')
+			stage3 = self._path('stage3.tar.bz2')
 			if not loader.fetch_stage3(self.config.arch, stage3):
 				raise Exception("Could not load stage3 archive from one of the mirrors: %s" % ', '.join(self.config.gentoo_mirrors))
 
@@ -133,23 +143,24 @@ class InstallGentooAction(ActionBase):
 
 			if self.config.portage == 'fetch':
 				# get the portage snapshot and extract it to usr/portage
-				portage = os.path.join(self.config.working_directory, 'portage.tar.bz2')
+				portage = self._path('portage.tar.bz2')
 				if not loader.fetch_portage(portage):
 					raise Exception("Could not load portage snapshot")
-				tar("xjf", portage, '-C', os.path.join(self.config.working_directory, 'usr/'))
+				tar("xjf", portage, '-C', self._path('/usr/'))
 				os.remove(portage)
 			elif self.config.portage == 'inherit':
 				if not os.listdir('/usr/portage'):
 					raise Exception("You don't have a portage tree mounted at /usr/portage.")
 
-				wd_portage = os.path.join(self.config.working_directory, 'usr/portage')
+				wd_portage = self._path('/usr//portage')
 				if not os.path.exists(wd_portage):
 					os.makedirs(wd_portage)
 
 				# bind-mount the hosts /usr/portage to usr/portage
 				mount('-o', 'bind', '/usr/portage', wd_portage)
 
-			self.personalize()
+			if self.do_personalization:
+				self.personalize()
 
 		except Exception as ex:
 			logging.error("Installing gentoo failed: %s" % ex)
@@ -162,14 +173,14 @@ class InstallGentooAction(ActionBase):
 
 		if self.config.locales:
 			logging.debug("Configuring locales...")
-			locale_gen = SimpleConfig(os.path.join(self.config.working_directory, 'etc/locale.gen'))
+			locale_gen = SimpleConfig(self._path('/etc/locale.gen'))
 			for locale in self.config.locales:
 				locale_gen.set(KeyOnlyValue(locale))
 			locale_gen.save()
 
 
 		logging.debug("Writing /etc/fstab")
-		fstab = FstabConfig(os.path.join(self.config.working_directory, 'etc/fstab'))
+		fstab = FstabConfig(self._path('/etc/fstab'))
 		fstab.remove('/dev/BOOT') # will be added later if someone defined a custom partition for /boot
 
 		for storage, mountpoint in self.config.storage:
@@ -188,24 +199,24 @@ class InstallGentooAction(ActionBase):
 		fstab.save()
 
 		logging.debug("Setting hostname to '%s'" % self.config.fqdn)
-		hname = KeyValueConfig(os.path.join(self.config.working_directory, 'etc/conf.d/hostname'), values_quoted=True)
+		hname = KeyValueConfig(self._path('/etc/conf.d/hostname'), values_quoted=True)
 		hname.set(KeyValueConfigValue('hostname', self.config.hostname))
 		hname.save()
 
-		hosts_file = os.path.join(self.config.working_directory, 'etc/hosts')
+		hosts_file = self._path('/etc/hosts')
 		hosts = KeyValueConfig(hosts_file, separator="\t")
 		hosts.set(KeyValueConfigValue("127.0.0.1", "{fqdn} {hostname} localhost".format(fqdn=self.config.fqdn, hostname=self.config.hostname)))
 		hosts.save()
 
 		logging.debug("Applying portage USEs and keywords...")
 		if self.config.portage_uses:
-			uses = KeyValueConfig(os.path.join(self.config.working_directory, 'etc/portage/package.use'), separator=" ")
+			uses = KeyValueConfig(self._path('/etc/portage/package.use'), separator=" ")
 			for pkg, use in self.config.portage_uses:
 				uses.set(KeyValueConfigValue(pkg, use))
 			uses.save()
 
 		if self.config.portage_keywords:
-			keywords = KeyValueConfig(os.path.join(self.config.working_directory, 'etc/portage/package.keywords'), separator=" ")
+			keywords = KeyValueConfig(self._path('/etc/portage/package.keywords'), separator=" ")
 			for pkg, kwds in self.config.portage_keywords:
 				keywords.set(KeyValueConfigValue(pkg, kwds))
 			keywords.save()

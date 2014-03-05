@@ -35,6 +35,18 @@ class FileConfig(ConfigBase):
 				if self.parser.has_option(section, option) \
 				else default
 
+	def _section_to_list(self, section):
+		"""
+		Turns a single section of the configuration file into an iterable of (key, value).
+		If the section does not exist, an empty list is returned.
+		"""
+		if not self.parser.has_section(section):
+			return []
+
+		for k, v in self.parser.items(section):
+			if not k in self.raw_keys:
+				yield (k, v)
+
 	@property
 	def gentoo_mirrors(self):
 		if not self._mirrors:
@@ -144,17 +156,11 @@ class FileConfig(ConfigBase):
 
 	@property
 	def portage_uses(self):
-		if self.parser.has_section('portage_uses'):
-			for k, v in self.parser.items('portage_uses'):
-				if not k in self.raw_keys:
-					yield (k, v)
-
-		return []
+		return self._section_to_list('portage_uses')
 
 	@property
 	def portage_keywords(self):
-		if self.parser.has_section('portage_keywords'):
-			for k, v in self.parser.items('portage_keywords'):
-				if not k in self.raw_keys:
-					yield (k, v)
-		return []
+		return self._section_to_list('portage_keywords')
+
+	def portage_keywords(self):
+		return self._section_to_list('make.conf')
