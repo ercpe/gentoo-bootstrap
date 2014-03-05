@@ -162,5 +162,6 @@ class FileConfig(ConfigBase):
 	def portage_keywords(self):
 		return self._section_to_list('portage_keywords')
 
-	def portage_keywords(self):
+	@property
+	def make_conf_settings(self):
 		return self._section_to_list('make.conf')
