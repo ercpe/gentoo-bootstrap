@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 
 from configparser import ConfigParser
+import warnings
 from cfgio.keyvalue import KeyValueConfig
 from gentoobootstrap.config import DIST_CFG_DIR, SITE_CFG_DIR
-from gentoobootstrap.config.base import ConfigBase
+from gentoobootstrap.config.base import ConfigBase, NetworkSettings
 import logging
 import os
 from gentoobootstrap.size import Size
@@ -93,6 +94,10 @@ class FileConfig(ConfigBase):
 		return self._get_value('system', 'default_locale', self.locales[0] if self.locales else None)
 
 	@property
+	def timezone(self):
+		return self._get_value('system', 'timezone', 'UTC')
+
+	@property
 	def memory(self):
 		return int(self._get_value('system', 'memory'))
 
@@ -149,10 +154,20 @@ class FileConfig(ConfigBase):
 	@property
 	def network(self):
 		br = self.parser.get('network', 'bridge')
-		if self._get_value('network', 'config', 'auto') == 'auto':
-			return br, None
-		else:
-			return br, self.parser.get('network', 'config')
+		auto = self._get_value('network', 'config', 'auto') == 'auto'
+
+		net_config = None
+
+		if not auto:
+			net_config = NetworkSettings(self._get_value('network', 'config'),
+										 self._get_value('network', 'gateway'),
+										 self._make_list(self._get_value('network', 'dns_servers', '')))
+
+		return br, net_config
+
+	@property
+	def host_bridge(self):
+		return self.parser.get('network', 'bridge')
 
 	@property
 	def portage_uses(self):

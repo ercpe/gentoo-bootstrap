@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 import os
+from cfgio.specialized.xen import XenConfig, XenDomUVifConfigValue, XenDomUDiskConfigValue
 from gentoobootstrap.actions.base import ActionBase
 
 
@@ -19,20 +20,13 @@ class CreateDomUConfig(ActionBase):
 	def execute(self):
 		logging.info("Writing domU config...")
 
-		storage_devices = []
-		for storage, mount in self.config.storage:
-			storage_devices.append("'phy:%s,%s,w'" % (storage.device, storage.domu_device))
-
-		cfg="""kernel = "{kernel_image}"
-vcpus  = {vcpu}
-memory = {memory}
-name   = "{name}"
-disk   = [ {storage} ]
-root   = "/dev/xvda1"
-vif    = [ 'mac={mac},bridge={bridge}', ]
-""".format(name=self.config.name, vcpu=self.config.vcpu, memory=self.config.memory,
-		mac=self.config.mac_address, bridge=self.config.network[0], storage=', '.join(storage_devices),
-		kernel_image=self.config.kernel)
-
-		with open(self.domu_config, 'w') as o:
-			o.write(cfg)
+		with XenConfig(self.domu_config) as cfg:
+			cfg.set('name', self.config.name)
+			cfg.set('kernel', self.config.kernel)
+			cfg.set('vcpus', self.config.vcpu)
+			cfg.set('memory', self.config.memory)
+			cfg.set('disk', [
+				XenDomUDiskConfigValue("phy", storage.device, os.path.basename(storage.domu_device), 'rw') for storage, mount in self.config.storage
+			])
+			cfg.set('root', self.config.root_storage.domu_device)
+			cfg.set('vif', [ XenDomUVifConfigValue(mac=self.config.mac_address, bridge=self.config.network[0]) ])

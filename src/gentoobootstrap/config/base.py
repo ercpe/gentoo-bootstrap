@@ -32,3 +32,11 @@ class ConfigBase(object):
 			return self.fqdn[:self.fqdn.index('.')]
 		else:
 			return self.fqdn
+
+
+class NetworkSettings(object):
+
+	def __init__(self, config, gateway, dns_servers):
+		self.config = config
+		self.gateway = gateway
+		self.dns_servers = dns_servers

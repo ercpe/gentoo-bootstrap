@@ -23,6 +23,7 @@ class CheckConfigAction(ActionBase):
 			try:
 				# try to get each attr in the configuration option
 				# mandatory options must raise an exception if they are not set.
+				logging.debug("Testing: %s" % attr_name)
 				getattr(self.config, attr_name)
 			except NoOptionError:
 				logging.error("Attribute '%s' not defined in configuration" % attr_name)

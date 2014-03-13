@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 import logging
 import os
+import random
 import shutil
+import string
 import traceback
 from cfgio.fstab import FstabConfig, FstabEntry
 from cfgio.keyvalue import KeyValueConfig, KeyValueConfigValue
@@ -10,7 +12,7 @@ from gentoobootstrap.actions.base import ActionBase
 from urllib.parse import urljoin
 from urllib.request import urlopen
 
-from sh import mount, umount, tar, sed
+from sh import mount, umount, tar, sed, ln
 
 
 class GentooStageLoader(object):
@@ -199,24 +201,97 @@ class InstallGentooAction(ActionBase):
 		fstab.save()
 
 		logging.debug("Setting hostname to '%s'" % self.config.fqdn)
-		hname = KeyValueConfig(self._path('/etc/conf.d/hostname'), values_quoted=True)
-		hname.set(KeyValueConfigValue('hostname', self.config.hostname))
-		hname.save()
+		with KeyValueConfig(self._path('/etc/conf.d/hostname'), values_quoted=True) as cfg:
+			cfg.set(KeyValueConfigValue('hostname', self.config.hostname))
 
-		hosts_file = self._path('/etc/hosts')
-		hosts = KeyValueConfig(hosts_file, separator="\t")
-		hosts.set(KeyValueConfigValue("127.0.0.1", "{fqdn} {hostname} localhost".format(fqdn=self.config.fqdn, hostname=self.config.hostname)))
-		hosts.save()
+		with KeyValueConfig(self._path('/etc/hosts'), separator="\t") as cfg:
+			cfg.set(KeyValueConfigValue("127.0.0.1", "{fqdn} {hostname} localhost".format(fqdn=self.config.fqdn, hostname=self.config.hostname)))
 
 		logging.debug("Applying portage USEs and keywords...")
 		if self.config.portage_uses:
-			uses = KeyValueConfig(self._path('/etc/portage/package.use'), separator=" ")
-			for pkg, use in self.config.portage_uses:
-				uses.set(KeyValueConfigValue(pkg, use))
-			uses.save()
+
+			with KeyValueConfig(self._path('/etc/portage/package.use'), separator=" ") as package_use:
+				for pkg, use in self.config.portage_uses:
+					package_use.set(KeyValueConfigValue(pkg, use))
 
 		if self.config.portage_keywords:
-			keywords = KeyValueConfig(self._path('/etc/portage/package.keywords'), separator=" ")
-			for pkg, kwds in self.config.portage_keywords:
-				keywords.set(KeyValueConfigValue(pkg, kwds))
-			keywords.save()
+			with KeyValueConfig(self._path('/etc/portage/package.keywords'), separator=" ") as package_keywords:
+				for pkg, kwds in self.config.portage_keywords:
+					package_keywords.set(KeyValueConfigValue(pkg, kwds))
+
+		if self.config.make_conf_settings:
+			logging.debug("Applying make.conf settings...")
+			with KeyValueConfig(self._path('/etc/portage/make.conf'), values_quoted=True) as cfg:
+				for k, v in self.config.make_conf_settings:
+					cfg.set(k, v)
+
+		logging.debug("Setting up network configuration")
+		host_bridge, netsettings = self.config.network
+		if netsettings:
+			with KeyValueConfig(self._path('/etc/conf.d/net', values_quoted=True)) as cfg:
+				cfg.set("config_eth0", netsettings.config)
+				cfg.set("routes_eth0", "default via %s" % netsettings.gateway)
+			with SimpleConfig(self._path('/etc/resolv.conf')) as cfg:
+				for server in netsettings.dns_servers:
+					cfg.set("nameserver %s" % server)
+
+		with open(self._path('/etc/timezone'), 'w') as f:
+			f.write(self.config.timezone)
+
+		tz_file = self._path(os.path.join('/usr/share/zoneinfo/', self.config.timezone))
+		if os.path.exists(tz_file):
+			if os.path.exists(self._path('/etc/localtime')):
+				os.remove(self._path('/etc/localtime'))
+			ln("-s", os.path.join('/usr/share/zoneinfo/', self.config.timezone), self._path('/etc/localtime'))
+		else:
+			logging.warning("Zoneinfo file %s does not exist" % tz_file)
+
+		self.personalize_chroot()
+
+	def personalize_chroot(self):
+		def randompassword():
+			chars = string.ascii_uppercase + string.ascii_lowercase + string.digits
+			return ''.join(random.choice(chars) for _ in range(20))
+
+		pwd = randompassword()
+		logging.info("Root password: %s" % pwd)
+
+		code = """#!/bin/bash
+
+function eerr() {
+	echo $* >&2
+}
+
+function die() {
+	eerr $*
+	exit 1
+}
+
+locale=""
+password=""
+
+while getopts "l:p": name; do
+	case $name in
+		l) locale=$OPTARG;;
+		p) password=$OPTARG;;
+	esac
+done
+
+locale-gen
+[[ ! -z "${locale}" ]] && eselect locale set ${locale}
+#sed -i '/c1:.*/ih0:12345:respawn:\/sbin\/agetty --noclear 9600 hvc0 screen' /etc/inittab || die "failed to enable serial console"
+#sed -i '/c[0-9]:.*/ s/^/#/' /etc/inittab || die "Failed to remove default tty"
+##grep -A 15 TERMINALS /etc/inittab
+
+env-update && source /etc/profile
+einfo "Running emerge --regen"
+emerge --regen > /dev/null || die "portage regen failed"
+#emerge layman -v --jobs={njobs} || die "Could not emerge layman"
+#layman -S && layman -a last-hope && echo "source /var/lib/layman/make.conf" >> /etc/portage/make.conf || die "Adding overlay last-hope failed"
+
+ln -s /etc/init.d/net.lo /etc/init.d/net.eth0
+rc-update add net.eth0 default
+rc-update add sshd default
+
+echo "${password}\n${password}" | passwd root
+"""
