@@ -18,6 +18,7 @@ class FileConfig(ConfigBase):
 		file = os.path.abspath(file)
 		self.raw_keys = kwargs.keys()
 		self.parser = ConfigParser(defaults=kwargs)
+		self.parser.optionxform = lambda option: option
 		files_read = self.parser.read([os.path.abspath(os.path.join(DIST_CFG_DIR, 'dist.cfg')),
 										os.path.abspath(os.path.join(SITE_CFG_DIR, 'site.cfg')),
 										file])
