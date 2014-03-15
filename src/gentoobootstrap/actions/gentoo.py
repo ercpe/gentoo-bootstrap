@@ -11,71 +11,51 @@ from cfgio.simple import SimpleConfig, KeyOnlyValue
 from gentoobootstrap.actions.base import ActionBase
 from urllib.parse import urljoin
 from urllib.request import urlopen
+from gentoobootstrap.loader import Loader
 
-from sh import mount, umount, tar, sed, ln
+from sh import mount, umount, tar, sed, ln, chroot
 
 
-class GentooStageLoader(object):
+class GentooLoader(Loader):
 
-	def __init__(self, mirror_urls, cache_dir='/tmp'):
+	def __init__(self, mirror_urls):
+		super(GentooLoader, self).__init__()
 		self.mirror_urls = mirror_urls
-		self.cache_dir = cache_dir
 
-	def fetch_stage3(self, arch, outfile):
+	def fetch_stage3(self, arch):
 		for mirror in self.mirror_urls:
 			try:
 				latest_file = urljoin(mirror, "releases/{arch}/autobuilds/latest-stage3-{arch}.txt".format(arch=arch))
+				latest = self.download(latest_file)
 
-				content = self.download(latest_file).split('\n')
+				with open(latest, 'r') as f:
+					content = f.read().split('\n')
+
 				content = [x for x in content if x and not x.startswith('#')]
 
 				if content and len(content) == 1:
 					url = urljoin(mirror, "releases/{arch}/autobuilds/{url}".format(arch=arch, url=content[0]))
-					logging.info("Stage3 tarball url: %s" % url)
+					logging.debug("Downloading url: %s" % url)
 
-					if self.download(url, outfile):
-						return True
+					return self.download(url)
 
 			except Exception as ex:
 				logging.error("Could not load stage3 from %s: %s" % (mirror, ex))
 				logging.error(traceback.format_exc())
 
-		return False
+		return None
+
 
 	def fetch_portage(self, outfile):
 		for mirror in self.mirror_urls:
 			try:
 				url = urljoin(mirror, 'snapshots/portage-latest.tar.bz2')
-				if self.download(url, outfile):
-					return True
+				logging.debug("Downloading url: %s" % url)
+				return self.download(url, outfile)
 			except Exception as ex:
 				logging.error("Downloading portage snapshot from %s failed: %s" % (mirror, ex))
 
 		return False
-
-	def download(self, url, outfile=None):
-		if outfile:
-			cache_file = os.path.join(self.cache_dir, os.path.basename(outfile))
-
-			if not os.path.exists(cache_file):
-				logging.info("Loading %s to %s" % (url, cache_file))
-				logging.debug("download(): cache file: %s" % cache_file)
-
-				r = urlopen(url, timeout=15)
-				with open(cache_file, 'wb') as o:
-					x = r.read(1024)
-					while x:
-						o.write(x)
-						x = r.read(1024)
-
-			logging.debug("Copying cache file %s to %s" % (cache_file, outfile))
-			shutil.copy(cache_file, outfile)
-
-			return True
-		else:
-			logging.info("Loading %s" % url)
-			r = urlopen(url, timeout=15)
-			return str(r.read(), encoding='UTF-8')
 
 
 class InstallGentooAction(ActionBase):
@@ -83,6 +63,7 @@ class InstallGentooAction(ActionBase):
 	def __init__(self, config, personalize=True):
 		super(InstallGentooAction, self).__init__(config)
 		self.do_personalization = personalize
+		self.clean_resolv_conf = False
 
 	def test(self):
 		return True
@@ -112,6 +93,9 @@ class InstallGentooAction(ActionBase):
 	def _cleanup(self):
 		"""Unmounts all from the current installation run in the correct order"""
 
+		if self.clean_resolv_conf and os.path.exists(self._path('/etc/resolv.conf')):
+			os.remove(self._path('/etc/resolv.conf'))
+
 		if self.is_mounted(self.config.working_directory):
 			mounts = FstabConfig('/proc/mounts')
 			chroot_mounts = mounts.find_all(lambda x: x.mountpoint.startswith(self.config.working_directory))
@@ -128,37 +112,62 @@ class InstallGentooAction(ActionBase):
 		"""
 		return os.path.join(self.config.working_directory, path.lstrip('/'))
 
+	def _print_summary(self):
+		logging.info("--------------------------------------------------------------")
+		logging.info("Name:            %s" % self.config.name)
+		logging.info("root's password: %s" % self.config.root_password)
+		logging.info("")
+		logging.info("Resources:")
+		logging.info("  vCPU:          %s" % self.config.vcpu)
+		logging.info("  Memory:        %s" % self.config.memory)
+		logging.info("  Harddisks:")
+		for storage, mount in self.config.storage:
+			logging.info("    %s:        %s" % (mount, storage.size))
+		logging.info("  Network:")
+		bridge, net = self.config.network
+		logging.info("    eth0:        bridge: %s" % bridge)
+		logging.info("                 MAC: %s" % self.config.mac_address)
+		if net:
+			logging.info("                 IP:  %s" % net.config)
+			logging.info("                 GW:  %s" % net.gateway)
+			logging.info("                 DNS: %s" % net.dns_servers)
+		else:
+			logging.info("                 DHCP")
+		logging.info("--------------------------------------------------------------")
+
 	def execute(self):
 		try:
+			self._print_summary()
 			self._prepare()
 
-			# load the latest stage3 archive
-			loader = GentooStageLoader(self.config.gentoo_mirrors)
+			logging.info("Fetching and unpacking archive(s)...")
 
-			stage3 = self._path('stage3.tar.bz2')
-			if not loader.fetch_stage3(self.config.arch, stage3):
+			# load the latest stage3 archive
+			loader = GentooLoader(self.config.gentoo_mirrors)
+
+			stage3 = loader.fetch_stage3(self.config.arch)
+			if not stage3:
 				raise Exception("Could not load stage3 archive from one of the mirrors: %s" % ', '.join(self.config.gentoo_mirrors))
 
 			# extract stage3 archive to chroot
 			tar("xjpf", stage3, "-C", self.config.working_directory)
-			os.remove(stage3)
 
 			if self.config.portage == 'fetch':
 				# get the portage snapshot and extract it to usr/portage
-				portage = self._path('portage.tar.bz2')
-				if not loader.fetch_portage(portage):
+				portage = loader.fetch_portage()
+				if not portage:
 					raise Exception("Could not load portage snapshot")
 				tar("xjf", portage, '-C', self._path('/usr/'))
-				os.remove(portage)
 			elif self.config.portage == 'inherit':
 				if not os.listdir('/usr/portage'):
 					raise Exception("You don't have a portage tree mounted at /usr/portage.")
 
-				wd_portage = self._path('/usr//portage')
+				wd_portage = self._path('/usr/portage')
 				if not os.path.exists(wd_portage):
 					os.makedirs(wd_portage)
 
 				# bind-mount the hosts /usr/portage to usr/portage
+				logging.debug("Bind'ing /usr/portage to %s" % wd_portage)
 				mount('-o', 'bind', '/usr/portage', wd_portage)
 
 			if self.do_personalization:
@@ -234,6 +243,9 @@ class InstallGentooAction(ActionBase):
 			with SimpleConfig(self._path('/etc/resolv.conf')) as cfg:
 				for server in netsettings.dns_servers:
 					cfg.set("nameserver %s" % server)
+		else:
+			self.clean_resolv_conf = not os.path.exists(self._path('/etc/resolv.conf'))
+			shutil.copy('/etc/resolv.conf', self._path('/etc/resolv.conf'))
 
 		with open(self._path('/etc/timezone'), 'w') as f:
 			f.write(self.config.timezone)
@@ -249,49 +261,35 @@ class InstallGentooAction(ActionBase):
 		self.personalize_chroot()
 
 	def personalize_chroot(self):
-		def randompassword():
-			chars = string.ascii_uppercase + string.ascii_lowercase + string.digits
-			return ''.join(random.choice(chars) for _ in range(20))
+		shutil.copy(os.path.join(os.path.dirname(__file__), '../../../tools/chroot-bootstrap.sh'), self._path('/root/bootstrap.sh'))
 
-		pwd = randompassword()
-		logging.info("Root password: %s" % pwd)
+		mount('-o', 'bind', '/dev', self._path('/dev'))
+		mount('-t', 'proc', 'none', self._path('/proc'))
 
-		code = """#!/bin/bash
+		args = [ '-l', self.config.default_locale,
+				 '-p', self.config.root_password,
+				 '-e', self.config.merge_list or '',
+				 '-u', ' '.join(self.config.layman_urls),
+				 '-o', ' '.join(self.config.layman_overlays),
+				 '-s', self.config.boot_services or ''
+		]
 
-function eerr() {
-	echo $* >&2
-}
+		logging.info("Setting up system in chroot. Depending on your default emerge list this takes some time...")
+		cmd = None
+		try:
+			cmd = chroot(self.config.working_directory, '/bin/bash', '/root/bootstrap.sh', *args, _iter=True)
+			for line in cmd:
+				logging.debug(line.strip())
+		except Exception as ex:
+			logging.fatal(ex)
+			if cmd:
+				if getattr(cmd, 'stdout', None):
+					logging.fatal(cmd.stdout)
+				if getattr(cmd, 'stderr', None):
+					logging.fatal(cmd.stderr)
 
-function die() {
-	eerr $*
-	exit 1
-}
+			if getattr(ex, 'stdout', None):
+				logging.fatal(ex.stdout)
+			if getattr(ex, 'stderr', None):
+				logging.fatal(ex.stderr)
 
-locale=""
-password=""
-
-while getopts "l:p": name; do
-	case $name in
-		l) locale=$OPTARG;;
-		p) password=$OPTARG;;
-	esac
-done
-
-locale-gen
-[[ ! -z "${locale}" ]] && eselect locale set ${locale}
-#sed -i '/c1:.*/ih0:12345:respawn:\/sbin\/agetty --noclear 9600 hvc0 screen' /etc/inittab || die "failed to enable serial console"
-#sed -i '/c[0-9]:.*/ s/^/#/' /etc/inittab || die "Failed to remove default tty"
-##grep -A 15 TERMINALS /etc/inittab
-
-env-update && source /etc/profile
-einfo "Running emerge --regen"
-emerge --regen > /dev/null || die "portage regen failed"
-#emerge layman -v --jobs={njobs} || die "Could not emerge layman"
-#layman -S && layman -a last-hope && echo "source /var/lib/layman/make.conf" >> /etc/portage/make.conf || die "Adding overlay last-hope failed"
-
-ln -s /etc/init.d/net.lo /etc/init.d/net.eth0
-rc-update add net.eth0 default
-rc-update add sshd default
-
-echo "${password}\n${password}" | passwd root
-"""

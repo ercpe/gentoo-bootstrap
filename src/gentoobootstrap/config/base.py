@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import random
+import string
 import tempfile
 
 
@@ -10,6 +11,7 @@ class ConfigBase(object):
 		self._mac = None
 		self.name = kwargs.get('name')
 		self.fqdn = kwargs.get('fqdn')
+		self.root_pwd = None
 
 	@property
 	def working_directory(self):
@@ -32,6 +34,17 @@ class ConfigBase(object):
 			return self.fqdn[:self.fqdn.index('.')]
 		else:
 			return self.fqdn
+
+	@property
+	def root_password(self):
+		def randompassword():
+			chars = string.ascii_uppercase + string.ascii_lowercase + string.digits
+			return ''.join(random.choice(chars) for _ in range(20))
+
+		if not self.root_pwd:
+			self.root_pwd = randompassword()
+
+		return self.root_pwd
 
 
 class NetworkSettings(object):

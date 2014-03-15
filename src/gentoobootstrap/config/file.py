@@ -181,3 +181,19 @@ class FileConfig(ConfigBase):
 	@property
 	def make_conf_settings(self):
 		return self._section_to_list('make.conf')
+
+	@property
+	def layman_urls(self):
+		return self._make_list(self._get_value('layman', 'overlays', ''))
+
+	@property
+	def layman_overlays(self):
+		return self._make_list(self._get_value('layman', 'add_overlays', ''))
+
+	@property
+	def boot_services(self):
+		return self._get_value('system', 'boot_services')
+
+	@property
+	def merge_list(self):
+		return self._get_value('system', 'merge_list')
