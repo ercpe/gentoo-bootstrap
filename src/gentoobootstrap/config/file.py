@@ -162,7 +162,9 @@ class FileConfig(ConfigBase):
 		if not auto:
 			net_config = NetworkSettings(self._get_value('network', 'config'),
 										 self._get_value('network', 'gateway'),
-										 self._make_list(self._get_value('network', 'dns_servers', '')))
+										 self._make_list(self._get_value('network', 'dns_servers', '')),
+										 self._get_value('network', 'resolv_domain'),
+										 self._get_value('network', 'resolv_search'))
 
 		return br, net_config
 

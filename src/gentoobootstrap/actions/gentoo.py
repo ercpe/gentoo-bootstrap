@@ -122,17 +122,20 @@ class InstallGentooAction(ActionBase):
 		logging.info("  Memory:        %s" % self.config.memory)
 		logging.info("  Harddisks:")
 		for storage, mount in self.config.storage:
-			logging.info("    %s:        %s" % (mount, storage.size))
-		logging.info("  Network:")
+			logging.info("    {:<10} {}".format(mount or storage.filesystem, storage.size))
+
+		logging.info("  Network (eth0):")
 		bridge, net = self.config.network
-		logging.info("    eth0:        bridge: %s" % bridge)
-		logging.info("                 MAC: %s" % self.config.mac_address)
+		logging.info("    Bridge:      %s" % bridge)
+		logging.info("    MAC:         %s" % self.config.mac_address)
 		if net:
-			logging.info("                 IP:  %s" % net.config)
-			logging.info("                 GW:  %s" % net.gateway)
-			logging.info("                 DNS: %s" % net.dns_servers)
+			logging.info("    IP:          %s" % net.config)
+			logging.info("    GW:          %s" % net.gateway)
+			logging.info("    DNS:         %s" % ', '.join(net.dns_servers))
+			logging.info("    Search:      %s" % net.resolv_search)
+			logging.info("    Domain:      %s" % net.resolv_domain)
 		else:
-			logging.info("                 DHCP")
+			logging.info("    DHCP")
 		logging.info("--------------------------------------------------------------")
 
 	def execute(self):
@@ -218,7 +221,6 @@ class InstallGentooAction(ActionBase):
 
 		logging.debug("Applying portage USEs and keywords...")
 		if self.config.portage_uses:
-
 			with KeyValueConfig(self._path('/etc/portage/package.use'), separator=" ") as package_use:
 				for pkg, use in self.config.portage_uses:
 					package_use.set(KeyValueConfigValue(pkg, use))
@@ -237,15 +239,20 @@ class InstallGentooAction(ActionBase):
 		logging.debug("Setting up network configuration")
 		host_bridge, netsettings = self.config.network
 		if netsettings:
-			with KeyValueConfig(self._path('/etc/conf.d/net', values_quoted=True)) as cfg:
+			with KeyValueConfig(self._path('/etc/conf.d/net'), values_quoted=True) as cfg:
 				cfg.set("config_eth0", netsettings.config)
 				cfg.set("routes_eth0", "default via %s" % netsettings.gateway)
-			with SimpleConfig(self._path('/etc/resolv.conf')) as cfg:
-				for server in netsettings.dns_servers:
-					cfg.set("nameserver %s" % server)
-		else:
-			self.clean_resolv_conf = not os.path.exists(self._path('/etc/resolv.conf'))
-			shutil.copy('/etc/resolv.conf', self._path('/etc/resolv.conf'))
+				cfg.set('dns_servers_eth0', ' '.join(netsettings.dns_servers))
+				if netsettings.resolv_domain:
+					cfg.set('dns_domain_eth0', netsettings.resolv_domain)
+				if netsettings.resolv_search:
+					cfg.set('dns_search_eth0', netsettings.resolv_search)
+			#with SimpleConfig(self._path('/etc/resolv.conf')) as cfg:
+			#	for server in netsettings.dns_servers:
+			#		cfg.set("nameserver %s" % server)
+
+		self.clean_resolv_conf = not os.path.exists(self._path('/etc/resolv.conf'))
+		shutil.copy('/etc/resolv.conf', self._path('/etc/resolv.conf'))
 
 		with open(self._path('/etc/timezone'), 'w') as f:
 			f.write(self.config.timezone)
@@ -292,4 +299,3 @@ class InstallGentooAction(ActionBase):
 				logging.fatal(ex.stdout)
 			if getattr(ex, 'stderr', None):
 				logging.fatal(ex.stderr)
-

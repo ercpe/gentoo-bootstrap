@@ -49,7 +49,9 @@ class ConfigBase(object):
 
 class NetworkSettings(object):
 
-	def __init__(self, config, gateway, dns_servers):
+	def __init__(self, config, gateway, dns_servers, domain, search):
 		self.config = config
 		self.gateway = gateway
 		self.dns_servers = dns_servers
+		self.resolv_domain = domain
+		self.resolv_search = search
