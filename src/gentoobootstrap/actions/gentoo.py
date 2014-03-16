@@ -122,7 +122,7 @@ class InstallGentooAction(ActionBase):
 		logging.info("  Memory:        %s" % self.config.memory)
 		logging.info("  Harddisks:")
 		for storage, mount in self.config.storage:
-			logging.info("    {:<10} {}".format(mount or storage.filesystem, storage.size))
+			logging.info("    {:<12} {}".format(mount or storage.filesystem, storage.size))
 
 		logging.info("  Network (eth0):")
 		bridge, net = self.config.network
@@ -233,8 +233,14 @@ class InstallGentooAction(ActionBase):
 		if self.config.make_conf_settings:
 			logging.debug("Applying make.conf settings...")
 			with KeyValueConfig(self._path('/etc/portage/make.conf'), values_quoted=True) as cfg:
+				mirrors = False
 				for k, v in self.config.make_conf_settings:
+					if k == "GENTOO_MIRRORS":
+						mirrors = True
 					cfg.set(k, v)
+
+				if not mirrors:
+					cfg.set('GENTOO_MIRRORS', ' '.join(self.config.gentoo_mirrors))
 
 		logging.debug("Setting up network configuration")
 		host_bridge, netsettings = self.config.network
