@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from configparser import ConfigParser
-import warnings
 from cfgio.keyvalue import KeyValueConfig
-from gentoobootstrap.config import DIST_CFG_DIR, SITE_CFG_DIR
 from gentoobootstrap.config.base import ConfigBase, NetworkSettings
 import logging
 import os
@@ -17,16 +15,23 @@ class FileConfig(ConfigBase):
 		super(FileConfig, self).__init__(**kwargs)
 		file = os.path.abspath(file)
 		self.raw_keys = kwargs.keys()
-		self.parser = ConfigParser(defaults=kwargs)
-		self.parser.optionxform = lambda option: option
-		files_read = self.parser.read([os.path.abspath(os.path.join(DIST_CFG_DIR, 'dist.cfg')),
-										os.path.abspath(os.path.join(SITE_CFG_DIR, 'site.cfg')),
-										file])
-		logging.info("Read configuration files: %s" % ','.join(files_read))
 
-		if not file in files_read:
-			logging.warning("Your configuration in %s has been ignored!" % file)
+		parser = ConfigParser(defaults=kwargs)
+		parser.optionxform = lambda option: option
+		parser.read(file)
 
+		# if this file has an 'inherit' setting in DEFAULT, build a list of
+		# filenames and re-read the configuration (-> create a new parser)
+		inherits = parser.get('DEFAULT', 'inherit', fallback=None)
+		if inherits:
+			files = [f if os.path.isabs(f) else os.path.join(os.path.dirname(file), f) for f in inherits.split(' ')]
+			files.append(file)
+			logging.debug("Files to read after expanding 'inherit': %s" % ', '.join(files))
+			parser = ConfigParser(defaults=kwargs)
+			parser.optionxform = lambda option: option
+			parser.read(files)
+
+		self.parser = parser
 		self._mirrors = None
 
 	def _make_list(self, value):
@@ -55,6 +60,7 @@ class FileConfig(ConfigBase):
 			mirror_string = None
 
 			if self._get_value('bootstrap', 'mirrors', 'inherit') == 'inherit':
+				# grab the GENTOO_MIRROS from the host's make.conf
 				make_conf = None
 
 				for f in ['/etc/portage/make.conf', '/etc/make.conf']:
