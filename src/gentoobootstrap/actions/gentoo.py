@@ -274,7 +274,15 @@ class InstallGentooAction(ActionBase):
 		self.personalize_chroot()
 
 	def personalize_chroot(self):
-		shutil.copy(os.path.join(os.path.dirname(__file__), '../../../tools/chroot-bootstrap.sh'), self._path('/root/bootstrap.sh'))
+		chroot_helper = None
+
+		for x in [os.path.join(os.path.dirname(__file__), '../../../tools/chroot-bootstrap.sh'),
+					'/usr/share/gentoo-bootstrap/chroot-bootstrap.sh']:
+			if os.path.exists(x):
+				chroot_helper = x
+				break
+
+		shutil.copy(chroot_helper, self._path('/root/bootstrap.sh'))
 
 		mount('-o', 'bind', '/dev', self._path('/dev'))
 		mount('-t', 'proc', 'none', self._path('/proc'))
