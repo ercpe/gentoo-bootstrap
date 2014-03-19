@@ -14,9 +14,14 @@ class FileConfig(ConfigBase):
 	def __init__(self, file, **kwargs):
 		super(FileConfig, self).__init__(**kwargs)
 		file = os.path.abspath(file)
-		self.raw_keys = kwargs.keys()
+		self.raw_keys = list(kwargs.keys())
+		# always pop out the inherit line in the global scope
+		self.raw_keys.append('inherit')
+		# and the configuration directory for domU configs, too
+		self.raw_keys.append('xen_config_dir')
 
 		parser = ConfigParser(defaults=kwargs)
+		# this lambda makes the keys in sections case-sensitive
 		parser.optionxform = lambda option: option
 		parser.read(file)
 

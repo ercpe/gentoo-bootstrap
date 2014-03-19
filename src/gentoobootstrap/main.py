@@ -69,6 +69,7 @@ def main():
 	parser.add_argument('-c', '--config', required=True)
 	parser.add_argument('-n', '--name', required=True, help="The name of the domU")
 	parser.add_argument('-f', '--fqdn', required=True, help="The full-qualified domain name")
+	parser.add_argument('-d', '--xen-config-dir', default='/etc/xen', help="Place the xen domU configuration in DIR (default: %(default)s)")
 	parser.add_argument('-v', '--verbose', action="count", default=3)
 	parser.add_argument('--no-install', action='store_true', help="Only create the volume and config. Do not install Gentoo.")
 	parser.add_argument('--no-personalize', action="store_true", help="Only install Gentoo, but skip personalization")
@@ -82,7 +83,7 @@ def main():
 	if not args.no_color:
 		import gentoobootstrap.log
 
-	cfg = FileConfig(args.config, name=args.name, fqdn=args.fqdn)
+	cfg = FileConfig(args.config, name=args.name, fqdn=args.fqdn, xen_config_dir=args.xen_config_dir)
 	Bootstrap(cfg).execute(install=not args.no_install, personalize=not args.no_personalize)
 
 

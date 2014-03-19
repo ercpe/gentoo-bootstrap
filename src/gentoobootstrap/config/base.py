@@ -11,6 +11,7 @@ class ConfigBase(object):
 		self._mac = None
 		self.name = kwargs.get('name')
 		self.fqdn = kwargs.get('fqdn')
+		self.xen_config_dir = kwargs.get('xen_config_dir', '/etc/xen')
 		self.root_pwd = None
 
 	@property

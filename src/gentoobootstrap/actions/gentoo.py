@@ -237,6 +237,9 @@ class InstallGentooAction(ActionBase):
 				for k, v in self.config.make_conf_settings:
 					if k == "GENTOO_MIRRORS":
 						mirrors = True
+					if k == "DISTDIR" and not os.path.exists(self._path(v)):
+						os.makedirs(self._path(v))
+
 					cfg.set(k, v)
 
 				if not mirrors:
@@ -253,9 +256,6 @@ class InstallGentooAction(ActionBase):
 					cfg.set('dns_domain_eth0', netsettings.resolv_domain)
 				if netsettings.resolv_search:
 					cfg.set('dns_search_eth0', netsettings.resolv_search)
-			#with SimpleConfig(self._path('/etc/resolv.conf')) as cfg:
-			#	for server in netsettings.dns_servers:
-			#		cfg.set("nameserver %s" % server)
 
 		self.clean_resolv_conf = not os.path.exists(self._path('/etc/resolv.conf'))
 		shutil.copy('/etc/resolv.conf', self._path('/etc/resolv.conf'))

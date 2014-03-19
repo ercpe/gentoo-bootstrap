@@ -9,7 +9,8 @@ class CreateDomUConfig(ActionBase):
 
 	def __init__(self, config):
 		super(CreateDomUConfig, self).__init__(config)
-		self.domu_config = os.path.join('/etc/xen/', '%s.cfg' % self.config.name)
+		self.domu_config = os.path.join(self.config.xen_config_dir, '%s.cfg' % self.config.name)
+		logging.debug("domU configuration file: %s" % self.domu_config)
 
 	def test(self):
 		e = os.path.exists(self.domu_config)
