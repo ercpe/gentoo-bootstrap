@@ -29,7 +29,7 @@ done
 
 locale-gen
 [[ ! -z "${locale}" ]] && eselect locale set ${locale}
-sed -i '/c1:.*/ih0:12345:respawn:\/sbin\/agetty --noclear 9600 hvc0 screen' /etc/inittab || die "failed to enable serial console"
+sed -i '/c1:.*/ih0:12345:respawn:\/sbin\/agetty --noclear 38400 hvc0 screen' /etc/inittab || die "failed to enable serial console"
 sed -i '/c[0-9]:.*/ s/^/#/' /etc/inittab || die "Failed to remove default tty"
 ##grep -A 15 TERMINALS /etc/inittab
 
