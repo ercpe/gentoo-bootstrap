@@ -302,6 +302,7 @@ class InstallGentooAction(ActionBase):
 			for line in cmd:
 				logging.debug(line.strip())
 		except Exception as ex:
+			# TODO: Make the output nicer and de-duplicate
 			logging.fatal(ex)
 			if cmd:
 				if getattr(cmd, 'stdout', None):
@@ -313,3 +314,7 @@ class InstallGentooAction(ActionBase):
 				logging.fatal(ex.stdout)
 			if getattr(ex, 'stderr', None):
 				logging.fatal(ex.stderr)
+		finally:
+			if os.path.exists(self._path('/root/bootstrap.sh')):
+				os.remove(self._path('/root/bootstrap.sh'))
+
