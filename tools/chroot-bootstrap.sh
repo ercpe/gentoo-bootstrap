@@ -59,7 +59,7 @@ if [[ ! -z "${overlays}" ]]; then
 fi
 
 if [[ ! -z "${mergelist}" ]]; then
-	emerge --nospinner --color n ${mergelist} || die "Emerging ${mergelist} failed"
+	NOCOLOR="true" emerge --nospinner --color n ${mergelist} || die "Emerging ${mergelist} failed"
 fi
 
 ln -s /etc/init.d/net.lo /etc/init.d/net.eth0 || die "Could not symlink net.eth0 to net.lo"

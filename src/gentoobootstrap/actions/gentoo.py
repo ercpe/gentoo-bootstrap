@@ -303,17 +303,17 @@ class InstallGentooAction(ActionBase):
 				logging.debug(line.strip())
 		except Exception as ex:
 			# TODO: Make the output nicer and de-duplicate
+			logging.fatal("EXCEPTION:")
 			logging.fatal(ex)
-			if cmd:
-				if getattr(cmd, 'stdout', None):
-					logging.fatal(cmd.stdout)
-				if getattr(cmd, 'stderr', None):
-					logging.fatal(cmd.stderr)
 
 			if getattr(ex, 'stdout', None):
-				logging.fatal(ex.stdout)
+				logging.fatal("STDOUT: ")
+				for line in str(ex.stdout, encoding='utf-8') .split('\n'):
+					logging.fatal(line)
 			if getattr(ex, 'stderr', None):
-				logging.fatal(ex.stderr)
+				logging.fatal("STDERR: ")
+				for line in str(ex.stderr, encoding='utf-8').split('\n'):
+					logging.fatal(line)
 		finally:
 			if os.path.exists(self._path('/root/bootstrap.sh')):
 				os.remove(self._path('/root/bootstrap.sh'))
