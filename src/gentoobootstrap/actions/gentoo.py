@@ -19,10 +19,11 @@ class GentooLoader(Loader):
 		super(GentooLoader, self).__init__()
 		self.mirror_urls = mirror_urls
 
-	def fetch_stage3(self, arch):
+	def fetch_stage3(self, arch, subarch=None):
 		for mirror in self.mirror_urls:
 			try:
-				latest_file = urljoin(mirror, "releases/{arch}/autobuilds/latest-stage3-{arch}.txt".format(arch=arch))
+				latest_file = urljoin(mirror, "releases/{arch}/autobuilds/latest-stage3-{subarch}.txt".format(arch=arch, subarch=subarch or arch))
+				logging.debug("Fetching 'latest' file from %s" % latest_file)
 				latest = self.download(latest_file)
 
 				with open(latest, 'r') as f:
@@ -145,7 +146,7 @@ class InstallGentooAction(ActionBase):
 			# load the latest stage3 archive
 			loader = GentooLoader(self.config.gentoo_mirrors)
 
-			stage3 = loader.fetch_stage3(self.config.arch)
+			stage3 = loader.fetch_stage3(self.config.arch, self.config.subarch)
 			if not stage3:
 				raise Exception("Could not load stage3 archive from one of the mirrors: %s" % ', '.join(self.config.gentoo_mirrors))
 

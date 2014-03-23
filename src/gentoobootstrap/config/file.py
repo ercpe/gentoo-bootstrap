@@ -98,6 +98,10 @@ class FileConfig(ConfigBase):
 		return self.parser.get('system', 'arch')
 
 	@property
+	def subarch(self):
+		return self.parser.get('system', 'subarch')
+
+	@property
 	def locales(self):
 		return self._make_list(self._get_value('system', 'locales', ''))
 
