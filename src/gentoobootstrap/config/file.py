@@ -210,3 +210,11 @@ class FileConfig(ConfigBase):
 	@property
 	def merge_list(self):
 		return self._get_value('system', 'merge_list')
+
+	@property
+	def post_setup_exec(self):
+		return self._get_value('post_setup', 'exec')
+
+	@property
+	def post_setup_chroot_exec(self):
+		return self._get_value('post_setup', 'chroot_exec')

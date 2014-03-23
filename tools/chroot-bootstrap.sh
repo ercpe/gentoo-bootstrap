@@ -74,3 +74,8 @@ if [[ ! -z "${services}" ]]; then
 fi
 
 echo "root:${password}" | chpasswd
+
+#[[ -x /root/chroot_exec ]] && /root/chroot_exec
+if [[ -x /root/chroot_exec ]]; then
+ 	/root/chroot_exec
+fi

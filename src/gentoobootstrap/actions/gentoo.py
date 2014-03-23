@@ -1,19 +1,16 @@
 # -*- coding: utf-8 -*-
 import logging
 import os
-import random
 import shutil
-import string
 import traceback
 from cfgio.fstab import FstabConfig, FstabEntry
 from cfgio.keyvalue import KeyValueConfig, KeyValueConfigValue
 from cfgio.simple import SimpleConfig, KeyOnlyValue
 from gentoobootstrap.actions.base import ActionBase
 from urllib.parse import urljoin
-from urllib.request import urlopen
 from gentoobootstrap.loader import Loader
 
-from sh import mount, umount, tar, sed, ln, chroot
+from sh import mount, umount, tar, sed, ln, chroot, Command
 
 
 class GentooLoader(Loader):
@@ -284,6 +281,12 @@ class InstallGentooAction(ActionBase):
 
 		shutil.copy(chroot_helper, self._path('/root/bootstrap.sh'))
 
+		if self.config.post_setup_chroot_exec:
+			logging.debug("Installing post-setup chroot executable: %s" % self.config.post_setup_chroot_exec)
+			shutil.copy(self.config.post_setup_chroot_exec, self._path('/root/chroot_exec'))
+			os.chmod(self._path('/root/chroot_exec'), 755)
+			os.chown(self._path('/root/chroot_exec'), 0, 0)
+
 		mount('-o', 'bind', '/dev', self._path('/dev'))
 		mount('-t', 'proc', 'none', self._path('/proc'))
 
@@ -301,6 +304,14 @@ class InstallGentooAction(ActionBase):
 			cmd = chroot(self.config.working_directory, '/bin/bash', '/root/bootstrap.sh', *args, _iter=True)
 			for line in cmd:
 				logging.debug(line.strip())
+
+			if self.config.post_setup_exec:
+				logging.info("Executing post-setup executable: %s" % self.config.post_setup_exec)
+				c = Command(self.config.post_setup_exec)
+				cmd = c(self.config.working_directory)
+				for line in cmd:
+					logging.debug(line.strip())
+
 		except Exception as ex:
 			# TODO: Make the output nicer and de-duplicate
 			logging.fatal("EXCEPTION:")
@@ -315,6 +326,7 @@ class InstallGentooAction(ActionBase):
 				for line in str(ex.stderr, encoding='utf-8').split('\n'):
 					logging.fatal(line)
 		finally:
-			if os.path.exists(self._path('/root/bootstrap.sh')):
-				os.remove(self._path('/root/bootstrap.sh'))
+			for p in [self._path('/root/bootstrap.sh'), self._path('/root/chroot_exec')]:
+				if os.path.exists(p):
+					os.remove(p)
 
