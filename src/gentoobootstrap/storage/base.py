@@ -6,16 +6,12 @@ from sh import Command
 
 class StorageBase(object):
 
-	def __init__(self, size, name, device, domu_device, filesystem, opts=None, **kwargs):
-		self.size = size
-		self.name = name
-		self.device = device
-		self.domu_device = domu_device
-		self.filesystem = filesystem
-		self.opts = opts
+	def __init__(self, **kwargs):
+		for k, v in kwargs.items():
+			setattr(self, k, v)
 
 	def create(self):
-		pass
+		raise NotImplementedError()
 
 	def exists(self):
 		e = os.path.exists(self.device)
@@ -42,5 +38,5 @@ class StorageBase(object):
 		else:
 			cmd(self.device)
 
-	def __repr__(self):
-		return "%s (%s), type %s" % (self.name, self.size, self.filesystem)
+	def is_block_storage(self):
+		return True

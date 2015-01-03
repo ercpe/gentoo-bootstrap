@@ -32,19 +32,21 @@ class Bootstrap(object):
 
 		return True
 
-	def execute(self, install=True, personalize=True):
+	def execute(self, install=True, personalize=True, create_config=True):
 		base_dir = tempfile.mkdtemp()
 		logging.debug("Base directory: %s" % base_dir)
 
 		try:
-			actions = [CheckConfigAction(self.config), CreateStorageAction(self.config)]
+			actions = [
+						CheckConfigAction(self.config),
+						CreateStorageAction(self.config)
+			]
 
 			if install:
 				actions.append(InstallGentooAction(self.config, personalize=personalize))
-			else:
-				logging.info("Skipping installation of Gentoo")
 
-			actions.append(CreateDomUConfig(self.config))
+			if create_config:
+				actions.append(CreateDomUConfig(self.config))
 
 			if not self.check(actions):
 				return
@@ -73,6 +75,7 @@ def main():
 	parser.add_argument('-v', '--verbose', action="count", default=3)
 	parser.add_argument('--no-install', action='store_true', help="Only create the volume and config. Do not install Gentoo.")
 	parser.add_argument('--no-personalize', action="store_true", help="Only install Gentoo, but skip personalization")
+	parser.add_argument('--no-config', action='store_true', help="Do not create a xen configuration")
 	parser.add_argument('--no-color', action='store_true', help='Do not colorize log output')
 
 	args = parser.parse_args()
@@ -84,7 +87,9 @@ def main():
 		import gentoobootstrap.log
 
 	cfg = FileConfig(args.config, name=args.name, fqdn=args.fqdn, xen_config_dir=args.xen_config_dir)
-	Bootstrap(cfg).execute(install=not args.no_install, personalize=not args.no_personalize)
+	Bootstrap(cfg).execute(install=not args.no_install,
+						   personalize=not args.no_personalize,
+						   create_config=not args.no_config)
 
 
 if __name__ == "__main__":

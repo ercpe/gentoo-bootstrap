@@ -43,13 +43,12 @@ class GentooLoader(Loader):
 
 		return None
 
-
-	def fetch_portage(self, outfile):
+	def fetch_portage(self):
 		for mirror in self.mirror_urls:
 			try:
 				url = urljoin(mirror, 'snapshots/portage-latest.tar.bz2')
 				logging.debug("Downloading url: %s" % url)
-				return self.download(url, outfile)
+				return self.download(url)
 			except Exception as ex:
 				logging.error("Downloading portage snapshot from %s failed: %s" % (mirror, ex))
 
@@ -75,7 +74,10 @@ class InstallGentooAction(ActionBase):
 
 		# mount the device to our chroot
 		logging.debug("Mounting root %s to %s" % (self.config.root_storage.device, self.config.working_directory))
-		mount(self.config.root_storage.device, self.config.working_directory)
+		if self.config.root_storage.is_block_storage():
+			mount(self.config.root_storage.device, self.config.working_directory)
+		else:
+			mount("-o", "bind", self.config.root_storage.device, self.config.working_directory)
 
 		# mount other device(s), if any
 		for storage, mountpoint in self.config.storage:
@@ -116,25 +118,28 @@ class InstallGentooAction(ActionBase):
 		logging.info("root's password: %s" % self.config.root_password)
 		logging.info("")
 		logging.info("Resources:")
-		logging.info("  vCPU:          %s" % self.config.vcpu)
-		logging.info("  Memory:        %s" % self.config.memory)
+		if self.config.vcpu:
+			logging.info("  vCPU:          %s" % self.config.vcpu)
+		if self.config.memory:
+			logging.info("  Memory:        %s" % self.config.memory)
 		logging.info("  Harddisks:")
 		for storage, mount in self.config.storage:
-			logging.info("    {:<12} {}".format(mount or storage.filesystem, storage.size))
+			logging.info("    {:<12} {}".format(mount or storage.filesystem, storage))
 
-		logging.info("  Network (eth0):")
-		bridge, net = self.config.network
-		logging.info("    Bridge:      %s" % bridge)
-		logging.info("    MAC:         %s" % self.config.mac_address)
-		if net:
-			logging.info("    IP:          %s" % net.config)
-			logging.info("    GW:          %s" % net.gateway)
-			logging.info("    DNS:         %s" % ', '.join(net.dns_servers))
-			logging.info("    Search:      %s" % net.resolv_search)
-			logging.info("    Domain:      %s" % net.resolv_domain)
-		else:
-			logging.info("    DHCP")
-		logging.info("--------------------------------------------------------------")
+		if self.config.network:
+			logging.info("  Network (eth0):")
+			bridge, net = self.config.network
+			logging.info("    Bridge:      %s" % bridge)
+			logging.info("    MAC:         %s" % self.config.mac_address)
+			if net:
+				logging.info("    IP:          %s" % net.config)
+				logging.info("    GW:          %s" % net.gateway)
+				logging.info("    DNS:         %s" % ', '.join(net.dns_servers))
+				logging.info("    Search:      %s" % net.resolv_search)
+				logging.info("    Domain:      %s" % net.resolv_domain)
+			else:
+				logging.info("    DHCP")
+			logging.info("--------------------------------------------------------------")
 
 	def execute(self):
 		try:
@@ -151,6 +156,7 @@ class InstallGentooAction(ActionBase):
 				raise Exception("Could not load stage3 archive from one of the mirrors: %s" % ', '.join(self.config.gentoo_mirrors))
 
 			# extract stage3 archive to chroot
+			logging.info("Extracting %s to %s" % (stage3, self.config.working_directory))
 			tar("xjpf", stage3, "-C", self.config.working_directory)
 
 			if self.config.portage == 'fetch':
@@ -196,6 +202,9 @@ class InstallGentooAction(ActionBase):
 		fstab.remove('/dev/BOOT') # will be added later if someone defined a custom partition for /boot
 
 		for storage, mountpoint in self.config.storage:
+			if not storage.is_block_storage():
+				continue
+
 			if mountpoint == "/":
 				x = fstab.get('/dev/ROOT')
 				x.device = storage.domu_device
@@ -243,20 +252,21 @@ class InstallGentooAction(ActionBase):
 				if not mirrors:
 					cfg.set('GENTOO_MIRRORS', ' '.join(self.config.gentoo_mirrors))
 
-		logging.debug("Setting up network configuration")
-		host_bridge, netsettings = self.config.network
-		if netsettings:
-			with KeyValueConfig(self._path('/etc/conf.d/net'), values_quoted=True) as cfg:
-				cfg.set("config_eth0", netsettings.config)
-				cfg.set("routes_eth0", "default via %s" % netsettings.gateway)
-				cfg.set('dns_servers_eth0', ' '.join(netsettings.dns_servers))
-				if netsettings.resolv_domain:
-					cfg.set('dns_domain_eth0', netsettings.resolv_domain)
-				if netsettings.resolv_search:
-					cfg.set('dns_search_eth0', netsettings.resolv_search)
+		if self.config.network:
+			logging.debug("Setting up network configuration")
+			host_bridge, netsettings = self.config.network
+			if netsettings:
+				with KeyValueConfig(self._path('/etc/conf.d/net'), values_quoted=True) as cfg:
+					cfg.set("config_eth0", netsettings.config)
+					cfg.set("routes_eth0", "default via %s" % netsettings.gateway)
+					cfg.set('dns_servers_eth0', ' '.join(netsettings.dns_servers))
+					if netsettings.resolv_domain:
+						cfg.set('dns_domain_eth0', netsettings.resolv_domain)
+					if netsettings.resolv_search:
+						cfg.set('dns_search_eth0', netsettings.resolv_search)
 
-		self.clean_resolv_conf = not os.path.exists(self._path('/etc/resolv.conf'))
-		shutil.copy('/etc/resolv.conf', self._path('/etc/resolv.conf'))
+			self.clean_resolv_conf = not os.path.exists(self._path('/etc/resolv.conf'))
+			shutil.copy('/etc/resolv.conf', self._path('/etc/resolv.conf'))
 
 		with open(self._path('/etc/timezone'), 'w') as f:
 			f.write(self.config.timezone)

@@ -7,6 +7,7 @@ import logging
 import os
 from gentoobootstrap.size import Size
 from gentoobootstrap.storage import get_impl as get_storage_impl
+from gentoobootstrap.storage import get_impl_class as get_storage_impl_class
 
 
 class FileConfig(ConfigBase):
@@ -99,7 +100,7 @@ class FileConfig(ConfigBase):
 
 	@property
 	def subarch(self):
-		return self.parser.get('system', 'subarch')
+		return self._get_value('system', 'subarch', None)
 
 	@property
 	def locales(self):
@@ -115,11 +116,11 @@ class FileConfig(ConfigBase):
 
 	@property
 	def memory(self):
-		return int(self._get_value('system', 'memory'))
+		return int(self._get_value('system', 'memory', 0))
 
 	@property
 	def vcpu(self):
-		return int(self._get_value('system', 'vcpu'))
+		return int(self._get_value('system', 'vcpu', 0))
 
 	@property
 	def has_storage(self):
@@ -127,7 +128,7 @@ class FileConfig(ConfigBase):
 
 	@property
 	def storage(self):
-		if not getattr(self, '_storage', None):
+		if not hasattr(self, '_storage'):
 			self._storage = []
 			storage_layout = self._get_value('storage', 'layout')
 			storage_type = self._get_value('storage', 'type')
@@ -149,16 +150,17 @@ class FileConfig(ConfigBase):
 					del global_storage_opts[x]
 
 			for i in range(no_disk):
-				self._storage.append((
-					get_storage_impl(storage_type,
-							name=self.parser.get(storage_section, 'disk%s_name' % i),
-							size=Size(self.parser.get(storage_section, 'disk%s_size' % i)),
-							domu_device=self.parser.get(storage_section, 'disk%s_device' % i),
-							filesystem=self.parser.get(storage_section, 'disk%s_fs' % i),
-							opts=self._get_value(storage_section, 'disk%s_opts' % i, None),
-							**global_storage_opts
-					),
-					self.parser.get(storage_section, 'disk%s_mount' % i)
+				storage_impl = get_storage_impl_class(storage_type)
+
+				disk_prefix = 'disk%s_' % i
+				storage_opts = dict([
+								(key.replace(disk_prefix, ''), self.parser.get(storage_section, key))
+								for key in self.parser.options(storage_section)
+								if key.startswith(disk_prefix) and key != '%smount' % disk_prefix
+				])
+
+				self._storage.append(
+					(get_storage_impl(storage_type, **storage_opts), self.parser.get(storage_section, 'disk%s_mount' % i)
 				))
 
 		return self._storage
@@ -169,6 +171,9 @@ class FileConfig(ConfigBase):
 
 	@property
 	def network(self):
+		if not self.parser.has_section('network'):
+			return None
+
 		br = self.parser.get('network', 'bridge')
 		auto = self._get_value('network', 'config', 'auto') == 'auto'
 
@@ -185,7 +190,9 @@ class FileConfig(ConfigBase):
 
 	@property
 	def host_bridge(self):
-		return self.parser.get('network', 'bridge')
+		if self.network:
+			return self.parser.get('network', 'bridge')
+		return None
 
 	@property
 	def portage_uses(self):
