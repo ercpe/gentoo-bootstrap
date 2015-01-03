@@ -12,27 +12,20 @@ Tool to ease the creation of Gentoo Xen domU's. It's based on the idea to automa
 
 `gentoo-bootstrap` uses configuration files in `/etc/gentoo-bootstrap`. Currently, there is no way to specify values other than domU name and FQDN at the command line. An interactive prompt may be added later.
 
-As a bare minimum you want the following settings:
+There are some sample configurations in `doc/configs`. As a bare minimum you want the following settings:
 
-    [DEFAULT]
-    inherit = storage-simple.cfg
-    
     [system]
-    kernel = /boot/vm-kernel
     arch = amd64
-    locales = en_GB.UTF-8 UTF-8,en_US.UTF-8 UTF-8, de_DE.UTF-8 UTF-8
-    timezone = Europe/Berlin
-    memory = 1024
-    vcpu = 4
 
     [storage]
     layout = simple
-    type = lvm
-    volume_group = vg-name
+    type = filesystem
 
-    [network]
-    config = auto
-    bridge = br0
+    [storage_simple]
+    disks = 1
+    disk0_mount = /
+    disk0_device = /tmp/bootstrap
+
 
 if you prefer (or have to use) static network configuration, change the `[network]` block to 
 
@@ -44,11 +37,9 @@ if you prefer (or have to use) static network configuration, change the `[networ
 
 You can use the `resolv_domain` and `resolv_search` options to specify the default domain and the dns search list.
 
-A more advanced configuration file is shipped as the `sample.cfg` in the tarball.
+A more advanced configuration file is shipped as the `sample-advanced.cfg` in the tarball.
 
 ### Defining custom storage
-
-You propably noticed the `inherit = storage-simple.cfg` option in the `[DEFAULT]` block. This option automatically loads the file storage-simple.cfg into the current configuration file.
 
     [storage_simple]
     disks = 2
