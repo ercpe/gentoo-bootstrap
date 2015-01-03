@@ -16,7 +16,8 @@ class LVMStorage(StorageBase):
 
 	def create(self):
 		logging.info("Creating the LV '%s' with %s on volume group %s" % (self.name, self.size, self.volume_group))
-		lvcreate("-L", str(self.size), "-n", self.name, self.volume_group)
+		for line in lvcreate("-L", str(self.size), "-d", "-n", self.name, self.volume_group, _in="y"):
+			logging.info(line)
 
 	def __repr__(self):
-		return "%s (%s), type %s" % (self.name, self.size, self.filesystem)
+		return "%s (%s), type %s" % (self.name, self.size, self.fs)

@@ -124,7 +124,7 @@ class InstallGentooAction(ActionBase):
 			logging.info("  Memory:        %s" % self.config.memory)
 		logging.info("  Harddisks:")
 		for storage, mount in self.config.storage:
-			logging.info("    {:<12} {}".format(mount or storage.filesystem, storage))
+			logging.info("    {:<12} {}".format(mount or storage.fs, storage))
 
 		if self.config.network:
 			logging.info("  Network (eth0):")
@@ -208,14 +208,14 @@ class InstallGentooAction(ActionBase):
 			if mountpoint == "/":
 				x = fstab.get('/dev/ROOT')
 				x.device = storage.domu_device
-				x.filesystem = storage.filesystem
+				x.filesystem = storage.fs
 				fstab.set(x)
-			elif storage.filesystem == "swap":
+			elif storage.fs == "swap":
 				x = fstab.get('/dev/SWAP')
 				x.device = storage.domu_device
 				fstab.set(x)
 			else:
-				fstab.set(FstabEntry(storage.device, mountpoint, storage.filesystem, 'defaults', 0, 2))
+				fstab.set(FstabEntry(storage.device, mountpoint, storage.fs, 'defaults', 0, 2))
 
 		fstab.save()
 
