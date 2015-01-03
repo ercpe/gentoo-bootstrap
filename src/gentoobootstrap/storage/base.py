@@ -26,13 +26,13 @@ class StorageBase(object):
 	def format(self):
 		cmd = None
 
-		if self.filesystem == "swap":
+		if self.fs == "swap":
 			cmd = Command("mkswap")
 		else:
-			cmd = Command("mkfs.%s" % self.filesystem)
+			cmd = Command("mkfs.%s" % self.fs)
 
 		logging.info("Formatting %s using %s" % (self.device, cmd))
-		if self.opts:
+		if hasattr(self, 'opts'):
 			logging.debug("Formatting with opts: %s" % self.opts)
 			cmd(self.device, self.opts)
 		else:

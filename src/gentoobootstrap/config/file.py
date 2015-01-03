@@ -153,11 +153,13 @@ class FileConfig(ConfigBase):
 				storage_impl = get_storage_impl_class(storage_type)
 
 				disk_prefix = 'disk%s_' % i
-				storage_opts = dict([
+				storage_opts = {}
+				storage_opts.update(global_storage_opts)
+				storage_opts.update(dict([
 								(key.replace(disk_prefix, ''), self.parser.get(storage_section, key))
 								for key in self.parser.options(storage_section)
 								if key.startswith(disk_prefix) and key != '%smount' % disk_prefix
-				])
+				]))
 
 				self._storage.append(
 					(get_storage_impl(storage_type, **storage_opts), self.parser.get(storage_section, 'disk%s_mount' % i)

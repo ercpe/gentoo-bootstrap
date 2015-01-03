@@ -12,7 +12,7 @@ class LVMStorage(StorageBase):
 		super(LVMStorage, self).__init__(**kwargs)
 		self.volume_group = kwargs.pop('volume_group')
 		self.size = Size(self.size)
-		self.domu_device = os.path.join("/dev", self.volume_group, self.name)
+		self.device = os.path.join("/dev", self.volume_group, self.name)
 
 	def create(self):
 		logging.info("Creating the LV '%s' with %s on volume group %s" % (self.name, self.size, self.volume_group))
