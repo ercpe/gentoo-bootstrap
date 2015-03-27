@@ -228,7 +228,12 @@ class InstallGentooAction(ActionBase):
 
 		logging.debug("Applying portage USEs and keywords...")
 		if self.config.portage_uses:
-			with KeyValueConfig(self._path('/etc/portage/package.use'), separator=" ") as package_use:
+			package_use_path = self._path('/etc/portage/package.use')
+
+			if os.path.isdir(package_use_path):
+				package_use_path = self._path(os.path.join('/etc/portage/package.use', 'bootstrap'))
+
+			with KeyValueConfig(package_use_path, separator=" ") as package_use:
 				for pkg, use in self.config.portage_uses:
 					package_use.set(KeyValueConfigValue(pkg, use))
 
